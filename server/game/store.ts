@@ -288,7 +288,7 @@ export function chooseTeam(
     if (targetTeam.members.length >= room.maxPlayersPerTeam)
         return { ok: false, reason: "Команда заполнена" };
 
-    // Найти и переместить игрока
+    // Найти и переместить игрока (может быть в команде или в наблюдателях)
     let member: RoomMember | undefined;
     for (const team of room.teams) {
         const idx = team.members.findIndex((m) => m.userId === userId);
@@ -297,6 +297,17 @@ export function chooseTeam(
             break;
         }
     }
+
+    // Если не нашли в командах — ищем в наблюдателях
+    if (!member) {
+        const specIdx = room.spectators.findIndex((s) => s.userId === userId);
+        if (specIdx !== -1) {
+            const spec = room.spectators[specIdx];
+            room.spectators.splice(specIdx, 1);
+            member = { userId: spec.userId, name: spec.name, isBot: false, score: 0, correct: 0, wrong: 0 };
+        }
+    }
+
     if (!member) return { ok: false, reason: "Игрок не найден" };
 
     targetTeam.members.push(member);

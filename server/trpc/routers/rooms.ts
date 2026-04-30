@@ -191,16 +191,36 @@ export const roomsRouter = router({
             const room = getRoom(input.roomId)!;
             const newTeamId = room.teams[input.teamIndex].id;
 
-            // Обновить teamId в БД — фильтр по обоим полям, чтобы не задеть другие матчи
-            await ctx.db
-                .update(schema.participants)
-                .set({ teamId: newTeamId })
-                .where(
-                    and(
-                        eq(schema.participants.userId, ctx.user.id),
-                        eq(schema.participants.matchId, input.roomId),
-                    ),
-                );
+            // Если игрок был наблюдателем — его participant удалён, нужно вставить заново
+            const existing = await ctx.db.query.participants.findFirst({
+                where: and(
+                    eq(schema.participants.matchId, input.roomId),
+                    eq(schema.participants.userId, ctx.user.id),
+                ),
+            });
+
+            if (existing) {
+                await ctx.db
+                    .update(schema.participants)
+                    .set({ teamId: newTeamId })
+                    .where(
+                        and(
+                            eq(schema.participants.userId, ctx.user.id),
+                            eq(schema.participants.matchId, input.roomId),
+                        ),
+                    );
+            } else {
+                await ctx.db.insert(schema.participants).values({
+                    id: crypto.randomUUID(),
+                    matchId: input.roomId,
+                    userId: ctx.user.id,
+                    teamId: newTeamId,
+                    score: 0,
+                    correct: 0,
+                    wrong: 0,
+                    isBot: false,
+                });
+            }
 
             return { ok: true };
         }),

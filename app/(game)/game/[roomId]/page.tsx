@@ -76,6 +76,8 @@ export default function GamePage({
     const [timeLeft, setTimeLeft] = useState(0);
     // userId → статус ответа в текущем раунде
     const [roundStatuses, setRoundStatuses] = useState<Record<string, MemberRoundStatus>>({});
+    // Актуальные данные команд из Pusher — обновляются мгновенно без поллинга
+    const [liveTeams, setLiveTeams] = useState<TeamScore[] | null>(null);
     // Снимок очков/ответов на начало раунда для расчёта дельты
     const baseScoresRef = useRef<Record<string, { score: number; correct: number; wrong: number }>>({});
     // Последний известный состав команд (из score:update, содержит correct/wrong)
@@ -124,6 +126,7 @@ export default function GamePage({
                 const d = data as { teams: TeamScore[] };
                 if (!d?.teams) return;
                 latestTeamsRef.current = d.teams;
+                setLiveTeams(d.teams);
 
                 setRoundStatuses((prev) => {
                     const next = { ...prev };
@@ -150,6 +153,7 @@ export default function GamePage({
                 setAnswered(false);
                 setLastResult(null);
                 setTimeLeft(Math.ceil(d.durationMs / 1000));
+                setLiveTeams(null); // сбрасываем до прихода первого score:update
                 const snapshot: typeof baseScoresRef.current = {};
                 for (const team of latestTeamsRef.current) {
                     for (const m of team.members ?? []) {
@@ -215,7 +219,10 @@ export default function GamePage({
     const isHost = room.hostId === userId;
     const roomTeams = room.teams ?? [];
 
-    // Находим команду пользователя
+    // Во время игры используем данные из Pusher (мгновенно), иначе из поллинга
+    const displayTeams = (liveTeams ?? roomTeams) as typeof roomTeams;
+
+    // Находим команду пользователя (всегда из roomTeams — состав не меняется в игре)
     const myTeamIndex = roomTeams.findIndex((team) =>
         team?.members?.some((member) => member?.userId === userId),
     );
@@ -231,7 +238,7 @@ export default function GamePage({
 
                 {/* ── Счёт команд + состав ── */}
                 <div className="flex gap-4 w-full max-w-2xl">
-                    {roomTeams.map((team, i) => {
+                    {displayTeams.map((team, i) => {
                         const style = TEAM_STYLE[i] ?? TEAM_STYLE[0];
                         const isMyTeam = myTeamIndex === i;
                         return (
