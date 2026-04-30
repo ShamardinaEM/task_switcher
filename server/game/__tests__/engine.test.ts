@@ -41,9 +41,9 @@ describe('isGreaterThan5', () => {
 
 describe('isVowel', () => {
   it('определяет гласные буквы (кириллица)', () => {
-    expect(isVowel('А')).toBe(true); // Cyrillic А
-    expect(isVowel('Е')).toBe(true); // Cyrillic Е
-    expect(isVowel('я')).toBe(true); // строчная
+    expect(isVowel('А')).toBe(true); 
+    expect(isVowel('Е')).toBe(true); 
+    expect(isVowel('я')).toBe(true); 
   });
 
   it('определяет согласные буквы (кириллица)', () => {

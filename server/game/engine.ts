@@ -2,11 +2,10 @@ import type { GameRound, GameRule, SymbolKind } from "./types";
 
 const VOWELS = new Set(["А", "Е", "Ё", "И", "О", "У", "Ы", "Э", "Ю", "Я"]);
 const LETTERS = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ".split("");
-const PRIMES = new Set([2, 3, 5, 7]);
 
 export const ROUND_DURATION_MS = 8000;
 export const POINTS_CORRECT = 10;
-export const POINTS_WRONG_TEAM = -5; // штраф для команды
+export const POINTS_WRONG_TEAM = -5;
 
 // ─── Генерация символа ────────────────────────────────────────────────────────
 
@@ -111,8 +110,8 @@ export function checkAnswer(round: GameRound, answer: string): boolean {
 // ─── Подсчёт очков ────────────────────────────────────────────────────────────
 
 export interface ScoreDelta {
-    playerDelta: number; // изменение личного счёта
-    teamDelta: number; // изменение командного счёта
+    playerDelta: number; 
+    teamDelta: number; 
 }
 
 export function calcScoreDelta(
@@ -120,7 +119,7 @@ export function calcScoreDelta(
     responseMs: number,
 ): ScoreDelta {
     if (isCorrect) {
-        // Бонус за скорость: максимум 5 дополнительных очков
+
         const speedBonus = Math.max(
             0,
             Math.floor((ROUND_DURATION_MS - responseMs) / 1600),

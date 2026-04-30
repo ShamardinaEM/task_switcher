@@ -11,7 +11,6 @@ export function Navbar() {
     return (
         <header className="border-b border-zinc-800 bg-zinc-900/80 backdrop-blur-sm sticky top-0 z-50">
             <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
-                {/* Логотип */}
                 <Link
                     href="/"
                     className="text-xl font-bold tracking-tight hover:opacity-80 transition-opacity"
@@ -19,7 +18,6 @@ export function Navbar() {
                     Task<span className="text-indigo-400">Switcher</span>
                 </Link>
 
-                {/* Навигация */}
                 <nav className="flex items-center gap-1">
                     <NavLink href="/">Главное меню</NavLink>
                     <NavLink href="/lobby">Лобби</NavLink>
@@ -27,7 +25,6 @@ export function Navbar() {
                     {session && <NavLink href="/stats">Статистика</NavLink>}
                     {session && (
                         <div className="m-3 flex items-center gap-3">
-                            {/* Аватар + имя */}
                             <div className="flex items-center gap-2">
                                 {session.user.image ? (
                                     <Image
@@ -51,7 +48,6 @@ export function Navbar() {
                     )}
                     {session && (
                         <div>
-                            {/* Кнопка выхода */}
                             <button
                                 onClick={() =>
                                     signOut().then(() => router.push("/login"))

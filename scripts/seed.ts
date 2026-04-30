@@ -2,9 +2,7 @@ import { db } from "../server/db/seed";
 import * as schema from "../server/db/schema";
 import crypto from "crypto";
 
-// Генерация пароля (для better-auth нужен хеш)
 async function hashPassword(password: string): Promise<string> {
-    // Используем crypto для простого хеша (better-auth сам обработает)
     const salt = crypto.randomBytes(16).toString("hex");
     const hash = crypto
         .pbkdf2Sync(password, salt, 1000, 64, "sha512")
@@ -33,7 +31,6 @@ function pick<T>(arr: T[]): T {
 async function seed() {
     console.log("🌱 Начинаем заполнение БД...");
 
-    // 1. Создаём пользователей
     const userIds: string[] = [];
     for (const p of PLAYERS) {
         const id = crypto.randomUUID();
@@ -48,7 +45,6 @@ async function seed() {
             updatedAt: new Date(),
         });
 
-        // Создаём аккаунт для better-auth (credentials)
         await db.insert(schema.accounts).values({
             id: crypto.randomUUID(),
             accountId: id,
@@ -63,7 +59,6 @@ async function seed() {
         console.log(`  👤 ${p.name} (${p.email}) / ${p.password}`);
     }
 
-    // 2. Создаём 5 матчей
     for (let matchNum = 1; matchNum <= 5; matchNum++) {
         const matchId = crypto.randomUUID();
         const code = Array.from({ length: 6 }, () =>
@@ -73,21 +68,19 @@ async function seed() {
         const teamRedId = crypto.randomUUID();
         const teamBlueId = crypto.randomUUID();
 
-        // Команды
         await db.insert(schema.teams).values([
             {
                 id: teamRedId,
-                name: `Команда Red #${matchNum}`,
+                name: `Команда Red`,
                 createdAt: new Date(),
             },
             {
                 id: teamBlueId,
-                name: `Команда Blue #${matchNum}`,
+                name: `Команда Blue`,
                 createdAt: new Date(),
             },
         ]);
 
-        // Матч
         const startedAt = new Date(Date.now() - randomInt(1, 7) * 86400000);
         const endedAt = new Date(
             startedAt.getTime() + randomInt(300, 600) * 1000,
@@ -103,7 +96,6 @@ async function seed() {
             winningTeamId: Math.random() > 0.5 ? teamRedId : teamBlueId,
         });
 
-        // MatchTeams
         const redScore = randomInt(150, 300);
         const blueScore = randomInt(150, 300);
 
@@ -122,12 +114,10 @@ async function seed() {
             },
         ]);
 
-        // Выбираем 4 случайных игроков для этого матча
         const shuffled = [...userIds].sort(() => Math.random() - 0.5);
         const redPlayers = shuffled.slice(0, 2);
         const bluePlayers = shuffled.slice(2, 4);
 
-        // Участники
         for (const uid of redPlayers) {
             const score = randomInt(50, 150);
             const correct = randomInt(5, 10);
@@ -144,7 +134,6 @@ async function seed() {
             });
         }
 
-        // Добавляем ботов
         for (let b = 0; b < 2; b++) {
             const botId = `bot-${crypto.randomUUID()}`;
             await db.insert(schema.users).values({
@@ -185,7 +174,6 @@ async function seed() {
             });
         }
 
-        // Раунды
         const totalRounds = randomInt(8, 10);
         for (let r = 1; r <= totalRounds; r++) {
             const roundId = crypto.randomUUID();

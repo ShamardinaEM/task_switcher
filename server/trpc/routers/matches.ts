@@ -5,7 +5,6 @@ import { router, protectedProcedure } from '../init';
 import * as schema from '../../db/schema';
 
 export const matchesRouter = router({
-  // История матчей текущего пользователя (с командой и результатом)
   myHistory: protectedProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db.query.participants.findMany({
       where: eq(schema.participants.userId, ctx.user.id),
@@ -33,7 +32,7 @@ export const matchesRouter = router({
         startedAt: match.startedAt,
         endedAt: match.endedAt,
         teamName: p.team?.name ?? '—',
-        won: finished ? won : null,   // null = не завершён
+        won: finished ? won : null,
         score: p.score,
         correct: p.correct,
         wrong: p.wrong,
@@ -42,7 +41,6 @@ export const matchesRouter = router({
     });
   }),
 
-  // Детали конкретного матча
   get: protectedProcedure
     .input(z.object({ matchId: z.string() }))
     .query(async ({ ctx, input }) => {

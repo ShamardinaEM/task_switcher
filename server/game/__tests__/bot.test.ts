@@ -35,10 +35,8 @@ describe('scheduleBot', () => {
   it('вызывает onAnswer через 1–5 секунд', async () => {
     const onAnswer = vi.fn<AnswerCallback>().mockResolvedValue(undefined);
     scheduleBot({ ...BASE_OPTS, accuracy: 1, onAnswer });
-    // До 1 секунды — ещё не вызван
     vi.advanceTimersByTime(999);
     expect(onAnswer).not.toHaveBeenCalled();
-    // После 5 секунд — точно вызван
     vi.advanceTimersByTime(5_000);
     expect(onAnswer).toHaveBeenCalledTimes(1);
   });
@@ -81,7 +79,7 @@ describe('scheduleBot', () => {
     scheduleBot({ ...BASE_OPTS, accuracy: 0, onAnswer });
     vi.runAllTimers();
     const call = onAnswer.mock.calls[0]?.[0];
-    expect(call?.answer).toBe('нечётное'); // противоположность 'чётное'
+    expect(call?.answer).toBe('нечётное'); 
   });
 
   it('все варианты ответов — проверка пар инверсий', () => {

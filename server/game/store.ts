@@ -9,7 +9,6 @@ import { eq, and, or, lt } from "drizzle-orm";
 
 export const rooms = new Map<string, GameRoom>();
 
-// Один повтор через 600 мс при сетевом сбое Pusher, чтобы не ронять игровой цикл
 async function triggerSafe(
     channel: string,
     event: string,
@@ -80,7 +79,6 @@ export async function leaveRoom(roomId: string, userId: string): Promise<void> {
     const room = rooms.get(roomId);
     if (!room || room.status !== "waiting") return;
 
-    // Если наблюдатель — просто убираем из списка, нет записи в БД
     const specIdx = room.spectators.findIndex((s) => s.userId === userId);
     if (specIdx !== -1) {
         room.spectators.splice(specIdx, 1);
@@ -123,7 +121,6 @@ export function becomeSpectator(
     const room = rooms.get(roomId);
     if (!room || room.status !== "waiting") return false;
 
-    // Убираем из команды
     for (const team of room.teams) {
         const idx = team.members.findIndex((m) => m.userId === userId);
         if (idx !== -1) {
@@ -132,7 +129,6 @@ export function becomeSpectator(
         }
     }
 
-    // Добавляем в наблюдатели (если ещё не там)
     if (!room.spectators.some((s) => s.userId === userId)) {
         room.spectators.push({ userId, name });
     }
@@ -141,8 +137,6 @@ export function becomeSpectator(
 }
 
 // ─── Периодическая очистка зависших матчей ────────────────────────────────────
-// waiting > 2 мин → завис на старте
-// playing > 15 мин → игровой цикл упал (сервер перезапустился и т.п.)
 
 async function cleanupStaleMatches(): Promise<void> {
     const twoMinAgo = new Date(Date.now() - 2 * 60 * 1000);
@@ -173,7 +167,7 @@ async function cleanupStaleMatches(): Promise<void> {
 
 // Защита от дублирования интервалов при hot-reload в dev
 declare global {
-    // eslint-disable-next-line no-var
+
     var _matchCleanupInterval: ReturnType<typeof setInterval> | undefined;
 }
 if (!global._matchCleanupInterval) {
@@ -240,29 +234,25 @@ export function joinRoom(
     const total = room.teams[0].members.length + room.teams[1].members.length;
     if (total >= room.maxPlayersPerTeam * 2) return false;
 
-    // Уже в комнате
     for (const team of room.teams) {
         if (team.members.some((m) => m.userId === member.userId)) return true;
     }
 
-    // Выбираем команду
     let team;
     if (
         preferredTeamIndex !== undefined &&
         preferredTeamIndex >= 0 &&
         preferredTeamIndex <= 1
     ) {
-        // Если указана предпочтительная команда и она не заполнена
+
         const preferred = room.teams[preferredTeamIndex];
         if (preferred.members.length < room.maxPlayersPerTeam) {
             team = preferred;
         } else {
-            // Если предпочтительная команда заполнена, ищем другую
             team = room.teams[preferredTeamIndex === 0 ? 1 : 0];
             if (team.members.length >= room.maxPlayersPerTeam) return false;
         }
     } else {
-        // Балансировка: добавить в команду с меньшим числом игроков
         team =
             room.teams[0].members.length <= room.teams[1].members.length
                 ? room.teams[0]
@@ -288,7 +278,6 @@ export function chooseTeam(
     if (targetTeam.members.length >= room.maxPlayersPerTeam)
         return { ok: false, reason: "Команда заполнена" };
 
-    // Найти и переместить игрока (может быть в команде или в наблюдателях)
     let member: RoomMember | undefined;
     for (const team of room.teams) {
         const idx = team.members.findIndex((m) => m.userId === userId);
@@ -298,7 +287,6 @@ export function chooseTeam(
         }
     }
 
-    // Если не нашли в командах — ищем в наблюдателях
     if (!member) {
         const specIdx = room.spectators.findIndex((s) => s.userId === userId);
         if (specIdx !== -1) {
@@ -325,9 +313,7 @@ export function addBot(roomId: string): { ok: boolean; botIds?: string[] } {
 
     const botIds: string[] = [];
 
-    // Если в командах одинаковое количество игроков
     if (team0Size === team1Size) {
-        // Добавляем по одному боту в КАЖДУЮ команду
         for (let i = 0; i < room.teams.length; i++) {
             if (room.teams[i].members.length < room.maxPlayersPerTeam) {
                 const botId = `bot-${crypto.randomUUID()}`;
@@ -348,7 +334,6 @@ export function addBot(roomId: string): { ok: boolean; botIds?: string[] } {
             }
         }
     }
-    // Если не одинаково - добавляем в команду с меньшим количеством
     else {
         const targetIndex = team0Size < team1Size ? 0 : 1;
 
@@ -375,17 +360,11 @@ export function addBot(roomId: string): { ok: boolean; botIds?: string[] } {
 }
 
 // ─── Запуск игры ─────────────────────────────────────────────────────────────
-// Синхронно меняет статус и сразу возвращает управление мутации.
-// Весь тяжёлый IO (Pusher, DB) выполняется в фоне — клиент не ждёт.
 
 export function startGame(roomId: string): boolean {
     const room = rooms.get(roomId);
     if (!room || room.status !== "waiting") return false;
-
-    // Сразу помечаем как playing, чтобы повторные вызовы игнорировались
     room.status = "playing";
-
-    // Fire-and-forget: не блокируем HTTP-ответ мутации
     void runGameLoop(roomId);
     return true;
 }
@@ -425,7 +404,6 @@ async function nextRound(roomId: string): Promise<void> {
     const round = generateRound(roundId);
     room.currentRound = round;
 
-    // Fire-and-forget: не блокируем клиента ожиданием записи в БД
     void db
         .insert(schema.rounds)
         .values({
@@ -445,9 +423,6 @@ async function nextRound(roomId: string): Promise<void> {
         rule: round.rule,
         durationMs: round.durationMs,
     });
-
-    // Запланировать ответы ботов — передаём submitAnswer как колбэк,
-    // чтобы избежать циклического импорта bot.ts ↔ store.ts
     for (const team of room.teams) {
         for (const member of team.members) {
             if (member.isBot) {
@@ -525,8 +500,6 @@ export async function submitAnswer(opts: {
         }
     }
     if (!playerTeam) return null;
-
-    // Боты не имеют записи в таблице users — пропускаем DB insert для них
     const isBot = opts.userId.startsWith("bot-");
     if (!isBot) {
         await db.insert(schema.answers).values({
@@ -539,8 +512,6 @@ export async function submitAnswer(opts: {
             createdAt: new Date(),
         });
     }
-
-    // Fire-and-forget: не блокируем ответ клиенту ожиданием Pusher
     void triggerSafe(gameChannel(opts.roomId), PusherEvent.SCORE_UPDATE, {
         teams: serializeTeams(room.teams),
     });

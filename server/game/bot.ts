@@ -19,7 +19,6 @@ interface BotOpts {
 }
 
 export function scheduleBot(opts: BotOpts): void {
-  // Бот отвечает через 1–5 секунд
   const delayMs = 1000 + Math.random() * 4000;
 
   setTimeout(() => {

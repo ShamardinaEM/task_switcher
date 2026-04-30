@@ -4,7 +4,7 @@ export type SymbolKind = 'digit' | 'letter';
 export interface GameRule {
   type: RuleType;
   description: string;
-  options: [string, string]; // два варианта ответа
+  options: [string, string];
 }
 
 export interface GameRound {
@@ -13,7 +13,7 @@ export interface GameRound {
   symbolKind: SymbolKind;
   rule: GameRule;
   correctAnswer: string;
-  startedAt: number; // Date.now()
+  startedAt: number;
   durationMs: number;
 }
 
@@ -39,16 +39,16 @@ export interface Spectator {
 }
 
 export interface GameRoom {
-  id: string; // matchId из БД
+  id: string;
   code: string;
   hostId: string;
   status: 'waiting' | 'playing' | 'finished';
   teams: [TeamState, TeamState];
   spectators: Spectator[];
-  maxPlayersPerTeam: number; // 2 (2v2) или 3 (3v3)
+  maxPlayersPerTeam: number;
   currentRound: GameRound | null;
   roundNumber: number;
   maxRounds: number;
-  answeredInRound: Set<string>; // userId-ы, уже ответившие в текущем раунде
+  answeredInRound: Set<string>;
   roundTimer: ReturnType<typeof setTimeout> | null;
 }

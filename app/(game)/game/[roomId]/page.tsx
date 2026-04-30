@@ -39,10 +39,9 @@ interface TeamScore {
     members: TeamMember[];
 }
 
-// Статус ответа игрока в текущем раунде
 interface MemberRoundStatus {
     answered: boolean;
-    delta: number;       // изменение личного счёта (+N или 0)
+    delta: number;
     isCorrect: boolean;
 }
 
@@ -74,16 +73,11 @@ export default function GamePage({
         playerDelta: number;
     } | null>(null);
     const [timeLeft, setTimeLeft] = useState(0);
-    // userId → статус ответа в текущем раунде
     const [roundStatuses, setRoundStatuses] = useState<Record<string, MemberRoundStatus>>({});
-    // Актуальные данные команд из Pusher — обновляются мгновенно без поллинга
     const [liveTeams, setLiveTeams] = useState<TeamScore[] | null>(null);
-    // Снимок очков/ответов на начало раунда для расчёта дельты
     const baseScoresRef = useRef<Record<string, { score: number; correct: number; wrong: number }>>({});
-    // Последний известный состав команд (из score:update, содержит correct/wrong)
     const latestTeamsRef = useRef<TeamScore[]>([]);
 
-    // Используем room как ЕДИНСТВЕННЫЙ источник данных о командах
     const {
         data: room,
         refetch,
@@ -91,7 +85,6 @@ export default function GamePage({
     } = trpc.rooms.get.useQuery(
         { roomId },
         {
-            // Во время игры Pusher ведёт реальное время — поллинг только как страховка
             refetchInterval: gameStatus === "playing" ? 10000 : 2000,
             enabled: !!roomId,
         },
@@ -113,11 +106,9 @@ export default function GamePage({
         onSuccess: (data) => {
             setAnswered(true);
             setLastResult(data);
-            // Счёт придёт через Pusher score:update — refetch не нужен
         },
     });
 
-    // Pusher только для быстрых обновлений
     useEffect(() => {
         if (!roomId) return;
 
@@ -153,7 +144,7 @@ export default function GamePage({
                 setAnswered(false);
                 setLastResult(null);
                 setTimeLeft(Math.ceil(d.durationMs / 1000));
-                setLiveTeams(null); // сбрасываем до прихода первого score:update
+                setLiveTeams(null);
                 const snapshot: typeof baseScoresRef.current = {};
                 for (const team of latestTeamsRef.current) {
                     for (const m of team.members ?? []) {
@@ -168,8 +159,6 @@ export default function GamePage({
                 setRoundStatuses({});
             },
             "round:end": () => {
-                // Не сбрасываем round в null — показываем символ до старта следующего.
-                // Таймер уже покажет 0, кнопки скроются по timeLeft === 0.
                 setTimeLeft(0);
             },
             "game:end": () => {
@@ -180,14 +169,12 @@ export default function GamePage({
         return unsubscribe;
     }, [roomId, router, refetch]);
 
-    // Синхронизация статуса игры из данных комнаты (страховка если Pusher пропустил событие)
     useEffect(() => {
         if (room?.status === "playing" && gameStatus !== "playing") {
             setGameStatus("playing");
         }
     }, [room?.status, gameStatus]);
 
-    // Таймер раунда
     useEffect(() => {
         if (!round) return;
         const interval = setInterval(() => {
@@ -219,24 +206,20 @@ export default function GamePage({
     const isHost = room.hostId === userId;
     const roomTeams = room.teams ?? [];
 
-    // Во время игры используем данные из Pusher (мгновенно), иначе из поллинга
     const displayTeams = (liveTeams ?? roomTeams) as typeof roomTeams;
 
-    // Находим команду пользователя (всегда из roomTeams — состав не меняется в игре)
     const myTeamIndex = roomTeams.findIndex((team) =>
         team?.members?.some((member) => member?.userId === userId),
     );
 
     const handleAddBot = () => {
-        addBot.mutate({ roomId }); // Просто вызываем без параметров
+        addBot.mutate({ roomId });
     };
-    // Игровой экран
     if (gameStatus === "playing" || room.status === "playing") {
 
         return (
             <main className="flex flex-1 flex-col items-center gap-5 p-4">
 
-                {/* ── Счёт команд + состав ── */}
                 <div className="flex gap-4 w-full max-w-2xl">
                     {displayTeams.map((team, i) => {
                         const style = TEAM_STYLE[i] ?? TEAM_STYLE[0];
@@ -246,7 +229,6 @@ export default function GamePage({
                                 key={team.id}
                                 className={`flex-1 rounded-xl border ${style.border} ${style.bg} flex flex-col overflow-hidden`}
                             >
-                                {/* Общий счёт команды */}
                                 <div className="p-3 text-center">
                                     <p className={`text-xs font-semibold ${style.text}`}>
                                         {team.name}
@@ -257,10 +239,8 @@ export default function GamePage({
                                     </p>
                                 </div>
 
-                                {/* Разделитель */}
                                 <div className={`h-px ${i === 0 ? "bg-red-500/30" : "bg-blue-500/30"}`} />
 
-                                {/* Игроки */}
                                 <ul className="flex flex-col gap-1 p-2">
                                     {team.members?.map((m) => {
                                         const isMe = m.userId === userId;
@@ -298,7 +278,6 @@ export default function GamePage({
                     })}
                 </div>
 
-                {/* ── Игровая зона ── */}
                 {round ? (
                     <div className="flex flex-col items-center gap-5 w-full max-w-2xl">
                         <div className="flex items-center gap-4 text-sm">
@@ -368,7 +347,6 @@ export default function GamePage({
         (team) => !team.members || team.members.length === 0,
     );
 
-    // Зал ожидания
     return (
         <main className="flex flex-1 flex-col items-center gap-6 p-6">
             <div className="flex w-full max-w-2xl items-center justify-between">
@@ -478,7 +456,6 @@ export default function GamePage({
                 })}
             </div>
 
-            {/* ── Наблюдатели ── */}
             <div className="w-full max-w-2xl rounded-2xl border border-zinc-600 bg-zinc-800/40 p-4">
                 <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3 flex-wrap">

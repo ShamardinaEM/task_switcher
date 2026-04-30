@@ -15,7 +15,6 @@ export default async function StatsPage() {
         const caller = await serverTrpc();
         const history = await caller.matches.myHistory();
 
-        // Сводная статистика
         const finished = history.filter((m) => m.status === "finished");
         const wins = finished.filter((m) => m.won === true).length;
         const losses = finished.filter((m) => m.won === false).length;
@@ -36,7 +35,6 @@ export default async function StatsPage() {
                     </p>
                 </div>
 
-                {/* Сводка */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 w-full max-w-2xl">
                     <StatCard label="Матчей" value={finished.length} />
                     <StatCard
@@ -76,7 +74,6 @@ export default async function StatsPage() {
                     />
                 </div>
 
-                {/* История матчей */}
                 <div className="w-full max-w-2xl">
                     <h2 className="text-lg font-semibold mb-3 text-zinc-300">
                         История матчей
@@ -93,7 +90,6 @@ export default async function StatsPage() {
                                     key={match.matchId}
                                     className="rounded-xl border border-zinc-800 bg-zinc-900 px-5 py-4 flex items-center gap-4"
                                 >
-                                    {/* Результат */}
                                     <div className="w-14 text-center shrink-0">
                                         {match.status === "finished" ? (
                                             match.won ? (
@@ -114,7 +110,6 @@ export default async function StatsPage() {
                                         )}
                                     </div>
 
-                                    {/* Основная информация */}
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2">
                                             <span className="font-mono text-sm text-zinc-400">
@@ -142,7 +137,6 @@ export default async function StatsPage() {
                                         )}
                                     </div>
 
-                                    {/* Счёт и точность */}
                                     <div className="flex items-center gap-5 text-sm shrink-0">
                                         <div className="text-center">
                                             <p className="font-bold text-indigo-400 text-lg leading-none">

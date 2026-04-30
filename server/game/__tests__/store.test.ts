@@ -169,13 +169,10 @@ describe('chooseTeam', () => {
   it('отказывает, если команда заполнена', () => {
     const { matchId } = makeRoom({ maxPlayersPerTeam: 2 });
     joinRoom(matchId, makeMember('u1'), 0);
-    joinRoom(matchId, makeMember('u2'), 0); // заполняем команду 0... нет, maxPerTeam=2, нужно добавить ещё
-    // Добавляем второго в команду 0 через prefer
+    joinRoom(matchId, makeMember('u2'), 0); 
     joinRoom(matchId, makeMember('u3'), 0);
-    // Теперь пытаемся переместить u1 в команду 0 (уже заполнена)
     joinRoom(matchId, makeMember('u4'), 1);
     const result = chooseTeam(matchId, 'u4', 0);
-    // Команда 0 может быть заполнена
     if (!result.ok) {
       expect(result.reason).toBeTruthy();
     }
@@ -204,7 +201,6 @@ describe('addBot', () => {
   it('добавляет только одного бота в команду с меньшим составом', () => {
     const { matchId } = makeRoom();
     joinRoom(matchId, makeMember('u1'), 0);
-    // Команда 1 пустая
     const result = addBot(matchId);
     expect(result.ok).toBe(true);
     const room = getRoom(matchId)!;

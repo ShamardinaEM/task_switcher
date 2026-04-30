@@ -21,7 +21,6 @@ test('stats: сводные карточки отображаются', async ({
 
   await page.goto('/stats');
 
-  // Все 8 карточек должны присутствовать (exact: true чтобы не задеть заголовки "История матчей" и т.п.)
   await expect(page.getByText('Матчей', { exact: true })).toBeVisible();
   await expect(page.getByText('Побед', { exact: true })).toBeVisible();
   await expect(page.getByText('Поражений', { exact: true })).toBeVisible();

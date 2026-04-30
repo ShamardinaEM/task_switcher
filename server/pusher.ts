@@ -9,7 +9,6 @@ export const pusherServer = new PusherServer({
   useTLS: true,
 });
 
-// Канал комнаты: game-{roomId}
 export const gameChannel = (roomId: string) => `game-${roomId}`;
 
 export const PusherEvent = {

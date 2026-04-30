@@ -97,7 +97,6 @@ export const roomsRouter = router({
                 maxPlayersPerTeam: input.maxPlayersPerTeam,
             });
 
-            // Хост попадает в Команду 1
             joinRoom(matchId, {
                 userId: ctx.user.id,
                 name: ctx.user.name,
@@ -140,7 +139,6 @@ export const roomsRouter = router({
                     message: "Комната заполнена",
                 });
 
-            // Определяем в какую команду попал игрок
             const teamId = room.teams[0].members.some(
                 (m) => m.userId === ctx.user.id,
             )
@@ -191,7 +189,6 @@ export const roomsRouter = router({
             const room = getRoom(input.roomId)!;
             const newTeamId = room.teams[input.teamIndex].id;
 
-            // Если игрок был наблюдателем — его participant удалён, нужно вставить заново
             const existing = await ctx.db.query.participants.findFirst({
                 where: and(
                     eq(schema.participants.matchId, input.roomId),
@@ -238,11 +235,9 @@ export const roomsRouter = router({
                 });
             }
 
-            // Записываем каждого бота в users + participants, чтобы они
-            // отображались в составе команды и в рейтинге
             const room = getRoom(roomId);
             for (const botId of result.botIds ?? []) {
-                // Находим команду бота в актуальном состоянии комнаты
+
                 let teamId: string | undefined;
                 for (const team of room?.teams ?? []) {
                     if (team.members.some((m) => m.userId === botId)) {
@@ -279,8 +274,7 @@ export const roomsRouter = router({
         }),
 
     // ─── Начать игру ────────────────────────────────────────────────────────────
-    // Мутация только валидирует запрос и сразу возвращает OK (<10ms).
-    // Игровой цикл (Pusher-события, раунды) запускается в фоне.
+
     start: protectedProcedure
         .input(z.object({ roomId: z.string() }))
         .mutation(({ ctx, input }) => {
@@ -300,7 +294,6 @@ export const roomsRouter = router({
                     message: "Нужно минимум 2 игрока в каждой команде",
                 });
 
-            // Не await — возвращаем ответ клиенту немедленно
             const started = startGame(input.roomId);
             if (!started)
                 throw new TRPCError({
@@ -351,7 +344,7 @@ export const roomsRouter = router({
                     message: "Нельзя стать наблюдателем",
                 });
 
-            // Удаляем запись участника из БД
+
             await ctx.db
                 .delete(schema.participants)
                 .where(

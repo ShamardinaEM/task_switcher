@@ -48,7 +48,6 @@ export default function LobbyPage() {
 
     return (
         <main className="flex flex-1 flex-col items-center gap-8 p-8">
-            {/* Шапка */}
             <div className="w-full max-w-lg">
                 <h1 className="text-3xl font-bold">Лобби</h1>
                 <p className="text-zinc-400 text-sm">
@@ -63,7 +62,6 @@ export default function LobbyPage() {
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full max-w-lg">
-                {/* Создать комнату */}
                 <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 flex flex-col gap-4">
                     <h2 className="text-xl font-semibold">Создать комнату</h2>
                     <p className="text-sm text-zinc-400">
@@ -71,7 +69,6 @@ export default function LobbyPage() {
                         игроков
                     </p>
 
-                    {/* Размер группы */}
                     <div className="flex flex-col gap-2">
                         <p className="text-xs text-zinc-500 uppercase tracking-wider">
                             Размер команд
@@ -102,7 +99,6 @@ export default function LobbyPage() {
                     </button>
                 </div>
 
-                {/* Войти по коду */}
                 <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 flex flex-col gap-4">
                     <h2 className="text-xl font-semibold">Войти по коду</h2>
                     <p className="text-sm text-zinc-400">
@@ -126,7 +122,6 @@ export default function LobbyPage() {
                 </div>
             </div>
 
-            {/* Правила игры */}
             <div className="w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
                 <h2 className="text-lg font-semibold mb-4">📖 Правила игры</h2>
                 <div className="flex flex-col gap-3 text-sm text-zinc-400">

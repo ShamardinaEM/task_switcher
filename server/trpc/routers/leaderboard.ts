@@ -3,7 +3,6 @@ import { router, publicProcedure } from "../init";
 import * as schema from "../../db/schema";
 
 export const leaderboardRouter = router({
-    // Топ команд — группируем по teamId + matchId
     teams: publicProcedure.query(async ({ ctx }) => {
         const matchResults = await ctx.db
             .select({
@@ -71,7 +70,6 @@ export const leaderboardRouter = router({
         return teamsWithMembers;
     }),
 
-    // Агрегированная статистика по командам (для винрейта)
     teamsAggregated: publicProcedure.query(async ({ ctx }) => {
         const teams = await ctx.db
             .select({
@@ -107,7 +105,6 @@ export const leaderboardRouter = router({
         }));
     }),
 
-    // Рейтинг игроков
     players: publicProcedure.query(async ({ ctx }) => {
         const rows = await ctx.db
             .select({
