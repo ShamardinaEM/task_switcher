@@ -33,12 +33,18 @@ export interface RoomMember {
   wrong: number;
 }
 
+export interface Spectator {
+  userId: string;
+  name: string;
+}
+
 export interface GameRoom {
   id: string; // matchId из БД
   code: string;
   hostId: string;
   status: 'waiting' | 'playing' | 'finished';
   teams: [TeamState, TeamState];
+  spectators: Spectator[];
   maxPlayersPerTeam: number; // 2 (2v2) или 3 (3v3)
   currentRound: GameRound | null;
   roundNumber: number;

@@ -12,6 +12,9 @@ import {
   getRoom,
   getRoomByCode,
   submitAnswer,
+  leaveRoom,
+  becomeSpectator,
+  deleteMatch,
   rooms,
 } from '../../game/store';
 
@@ -37,40 +40,53 @@ export const roomsRouter = router({
             const teamAId = crypto.randomUUID();
             const teamBId = crypto.randomUUID();
 
-            await ctx.db.insert(schema.teams).values([
-                {
-                    id: teamAId,
-                    name: "Команда Red",
-                    createdAt: new Date(),
-                },
-                {
-                    id: teamBId,
-                    name: "Команда Blue",
-                    createdAt: new Date(),
-                },
-            ]);
+            await ctx.db.transaction(async (tx) => {
+                await tx.insert(schema.teams).values([
+                    {
+                        id: teamAId,
+                        name: "Команда Red",
+                        createdAt: new Date(),
+                    },
+                    {
+                        id: teamBId,
+                        name: "Команда Blue",
+                        createdAt: new Date(),
+                    },
+                ]);
 
-            await ctx.db.insert(schema.matches).values({
-                id: matchId,
-                roomCode: code,
-                status: "waiting",
-                createdAt: new Date()
-            });
+                await tx.insert(schema.matches).values({
+                    id: matchId,
+                    roomCode: code,
+                    status: "waiting",
+                    createdAt: new Date(),
+                });
 
-            await ctx.db.insert(schema.matchTeams).values([
-                {
+                await tx.insert(schema.matchTeams).values([
+                    {
+                        id: crypto.randomUUID(),
+                        matchId,
+                        teamId: teamAId,
+                        totalScore: 0,
+                    },
+                    {
+                        id: crypto.randomUUID(),
+                        matchId,
+                        teamId: teamBId,
+                        totalScore: 0,
+                    },
+                ]);
+
+                await tx.insert(schema.participants).values({
                     id: crypto.randomUUID(),
                     matchId,
+                    userId: ctx.user.id,
                     teamId: teamAId,
-                    totalScore: 0,
-                },
-                {
-                    id: crypto.randomUUID(),
-                    matchId,
-                    teamId: teamBId,
-                    totalScore: 0,
-                },
-            ]);
+                    score: 0,
+                    correct: 0,
+                    wrong: 0,
+                    isBot: false,
+                });
+            });
 
             const room = createRoom({
                 matchId,
@@ -89,17 +105,6 @@ export const roomsRouter = router({
                 score: 0,
                 correct: 0,
                 wrong: 0,
-            });
-
-            await ctx.db.insert(schema.participants).values({
-                id: crypto.randomUUID(),
-                matchId,
-                userId: ctx.user.id,
-                teamId: teamAId,
-                score: 0,
-                correct: 0,
-                wrong: 0,
-                isBot: false,
             });
 
             return { roomId: matchId, code };
@@ -186,11 +191,16 @@ export const roomsRouter = router({
             const room = getRoom(input.roomId)!;
             const newTeamId = room.teams[input.teamIndex].id;
 
-            // Обновить teamId в БД
+            // Обновить teamId в БД — фильтр по обоим полям, чтобы не задеть другие матчи
             await ctx.db
                 .update(schema.participants)
                 .set({ teamId: newTeamId })
-                .where(eq(schema.participants.userId, ctx.user.id));
+                .where(
+                    and(
+                        eq(schema.participants.userId, ctx.user.id),
+                        eq(schema.participants.matchId, input.roomId),
+                    ),
+                );
 
             return { ok: true };
         }),
@@ -222,26 +232,26 @@ export const roomsRouter = router({
                 }
                 if (!teamId) continue;
 
-                // Создаём фиктивного пользователя-бота
-                await ctx.db.insert(schema.users).values({
-                    id: botId,
-                    name: "🤖 Бот",
-                    email: `${botId}@bot.local`,
-                    emailVerified: false,
-                    createdAt: new Date(),
-                    updatedAt: new Date(),
-                });
+                await ctx.db.transaction(async (tx) => {
+                    await tx.insert(schema.users).values({
+                        id: botId,
+                        name: "🤖 Бот",
+                        email: `${botId}@bot.local`,
+                        emailVerified: false,
+                        createdAt: new Date(),
+                        updatedAt: new Date(),
+                    });
 
-                // Добавляем бота как участника матча
-                await ctx.db.insert(schema.participants).values({
-                    id: crypto.randomUUID(),
-                    matchId: roomId,
-                    userId: botId,
-                    teamId,
-                    score: 0,
-                    correct: 0,
-                    wrong: 0,
-                    isBot: true,
+                    await tx.insert(schema.participants).values({
+                        id: crypto.randomUUID(),
+                        matchId: roomId,
+                        userId: botId,
+                        teamId,
+                        score: 0,
+                        correct: 0,
+                        wrong: 0,
+                        isBot: true,
+                    });
                 });
             }
 
@@ -304,9 +314,42 @@ export const roomsRouter = router({
                         isBot: m.isBot,
                     })),
                 })),
+                spectators: room.spectators,
                 roundNumber: room.roundNumber,
                 maxRounds: room.maxRounds,
             };
+        }),
+
+    // ─── Стать наблюдателем ─────────────────────────────────────────────────────
+    spectate: protectedProcedure
+        .input(z.object({ roomId: z.string() }))
+        .mutation(async ({ ctx, input }) => {
+            const ok = becomeSpectator(input.roomId, ctx.user.id, ctx.user.name);
+            if (!ok)
+                throw new TRPCError({
+                    code: "BAD_REQUEST",
+                    message: "Нельзя стать наблюдателем",
+                });
+
+            // Удаляем запись участника из БД
+            await ctx.db
+                .delete(schema.participants)
+                .where(
+                    and(
+                        eq(schema.participants.matchId, input.roomId),
+                        eq(schema.participants.userId, ctx.user.id),
+                    ),
+                );
+
+            return { ok: true };
+        }),
+
+    // ─── Выйти из комнаты ───────────────────────────────────────────────────────
+    leave: protectedProcedure
+        .input(z.object({ roomId: z.string() }))
+        .mutation(async ({ ctx, input }) => {
+            await leaveRoom(input.roomId, ctx.user.id);
+            return { ok: true };
         }),
 
     // ─── Ответить на раунд ──────────────────────────────────────────────────────
@@ -333,53 +376,23 @@ export const roomsRouter = router({
             return result;
         }),
 
-    // ─── Очистка зависших комнат ──────────────────────────────────────────────────
+    // ─── Ручная очистка зависших комнат ─────────────────────────────────────────
     cleanup: protectedProcedure.mutation(async ({ ctx }) => {
-        const staleTimeoutMinutes = 5;
+        const twoMinAgo = new Date(Date.now() - 2 * 60 * 1000);
 
-        // Находим устаревшие матчи в статусе waiting
         const staleMatches = await ctx.db
             .select({ id: schema.matches.id })
             .from(schema.matches)
             .where(
                 and(
                     eq(schema.matches.status, "waiting"),
-                    sql`${schema.matches.createdAt} < datetime('now', '-${staleTimeoutMinutes} minutes')`,
+                    sql`${schema.matches.createdAt} < ${twoMinAgo.toISOString()}`,
                 ),
             );
 
         let cleanedCount = 0;
-
         for (const match of staleMatches) {
-            // Удаляем связанные данные
-            await ctx.db
-                .delete(schema.participants)
-                .where(eq(schema.participants.matchId, match.id));
-
-            await ctx.db
-                .delete(schema.matchTeams)
-                .where(eq(schema.matchTeams.matchId, match.id));
-
-            // Удаляем команды, связанные с этим матчем
-            const matchTeams = await ctx.db
-                .select({ teamId: schema.matchTeams.teamId })
-                .from(schema.matchTeams)
-                .where(eq(schema.matchTeams.matchId, match.id));
-
-            for (const mt of matchTeams) {
-                await ctx.db
-                    .delete(schema.teams)
-                    .where(eq(schema.teams.id, mt.teamId));
-            }
-
-            // Удаляем сам матч
-            await ctx.db
-                .delete(schema.matches)
-                .where(eq(schema.matches.id, match.id));
-
-            // Удаляем комнату из памяти, если она там есть
-            rooms.delete(match.id);
-
+            await deleteMatch(match.id).catch(() => null);
             cleanedCount++;
         }
 

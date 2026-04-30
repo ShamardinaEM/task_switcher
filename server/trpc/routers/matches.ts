@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { eq, desc } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { router, protectedProcedure } from '../init';
 import * as schema from '../../db/schema';
 
@@ -17,10 +17,12 @@ export const matchesRouter = router({
         },
         team: true,
       },
-      orderBy: (p, { desc }) => [desc(p.id)],
     });
 
-    return rows.map((p) => {
+    return rows
+      .filter((p) => p.match.status === "finished")
+      .sort((a, b) => (b.match.endedAt?.getTime() ?? 0) - (a.match.endedAt?.getTime() ?? 0))
+      .map((p) => {
       const match = p.match;
       const won = match.winningTeamId === p.teamId;
       const finished = match.status === 'finished';

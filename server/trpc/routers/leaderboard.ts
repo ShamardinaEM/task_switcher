@@ -124,6 +124,13 @@ export const leaderboardRouter = router({
                 schema.users,
                 eq(schema.participants.userId, schema.users.id),
             )
+            .innerJoin(
+                schema.matches,
+                and(
+                    eq(schema.matches.id, schema.participants.matchId),
+                    eq(schema.matches.status, "finished"),
+                ),
+            )
             .where(eq(schema.participants.isBot, false))
             .groupBy(
                 schema.participants.userId,

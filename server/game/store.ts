@@ -5,9 +5,183 @@ import { scheduleBot } from "./bot";
 import { pusherServer, gameChannel, PusherEvent } from "../pusher";
 import { db } from "../db";
 import * as schema from "../db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, or, lt } from "drizzle-orm";
 
 export const rooms = new Map<string, GameRoom>();
+
+// Один повтор через 600 мс при сетевом сбое Pusher, чтобы не ронять игровой цикл
+async function triggerSafe(
+    channel: string,
+    event: string,
+    data: object,
+): Promise<void> {
+    try {
+        await pusherServer.trigger(channel, event, data);
+    } catch {
+        await new Promise((r) => setTimeout(r, 600));
+        try {
+            await pusherServer.trigger(channel, event, data);
+        } catch (err) {
+            console.error(`[Pusher] trigger failed for event "${event}":`, err);
+        }
+    }
+}
+
+// ─── Удаление матча ───────────────────────────────────────────────────────────
+
+export async function deleteMatch(matchId: string): Promise<void> {
+    const room = rooms.get(matchId);
+    if (room?.roundTimer) clearTimeout(room.roundTimer);
+    rooms.delete(matchId);
+
+    await db.transaction(async (tx) => {
+        const matchTeamRows = await tx
+            .select({ teamId: schema.matchTeams.teamId })
+            .from(schema.matchTeams)
+            .where(eq(schema.matchTeams.matchId, matchId));
+
+        const botRows = await tx
+            .select({ userId: schema.participants.userId })
+            .from(schema.participants)
+            .where(
+                and(
+                    eq(schema.participants.matchId, matchId),
+                    eq(schema.participants.isBot, true),
+                ),
+            );
+
+        await tx
+            .delete(schema.participants)
+            .where(eq(schema.participants.matchId, matchId));
+        await tx
+            .delete(schema.matchTeams)
+            .where(eq(schema.matchTeams.matchId, matchId));
+
+        for (const mt of matchTeamRows) {
+            await tx
+                .delete(schema.teams)
+                .where(eq(schema.teams.id, mt.teamId));
+        }
+        for (const bot of botRows) {
+            await tx
+                .delete(schema.users)
+                .where(eq(schema.users.id, bot.userId));
+        }
+
+        await tx
+            .delete(schema.matches)
+            .where(eq(schema.matches.id, matchId));
+    });
+}
+
+// ─── Выход из комнаты ─────────────────────────────────────────────────────────
+
+export async function leaveRoom(roomId: string, userId: string): Promise<void> {
+    const room = rooms.get(roomId);
+    if (!room || room.status !== "waiting") return;
+
+    // Если наблюдатель — просто убираем из списка, нет записи в БД
+    const specIdx = room.spectators.findIndex((s) => s.userId === userId);
+    if (specIdx !== -1) {
+        room.spectators.splice(specIdx, 1);
+        return;
+    }
+
+    for (const team of room.teams) {
+        const idx = team.members.findIndex((m) => m.userId === userId);
+        if (idx !== -1) {
+            team.members.splice(idx, 1);
+            break;
+        }
+    }
+
+    const realPlayers = room.teams
+        .flatMap((t) => t.members)
+        .filter((m) => !m.isBot);
+
+    if (realPlayers.length === 0) {
+        await deleteMatch(roomId);
+    } else {
+        await db
+            .delete(schema.participants)
+            .where(
+                and(
+                    eq(schema.participants.matchId, roomId),
+                    eq(schema.participants.userId, userId),
+                ),
+            );
+    }
+}
+
+// ─── Стать наблюдателем ───────────────────────────────────────────────────────
+
+export function becomeSpectator(
+    roomId: string,
+    userId: string,
+    name: string,
+): boolean {
+    const room = rooms.get(roomId);
+    if (!room || room.status !== "waiting") return false;
+
+    // Убираем из команды
+    for (const team of room.teams) {
+        const idx = team.members.findIndex((m) => m.userId === userId);
+        if (idx !== -1) {
+            team.members.splice(idx, 1);
+            break;
+        }
+    }
+
+    // Добавляем в наблюдатели (если ещё не там)
+    if (!room.spectators.some((s) => s.userId === userId)) {
+        room.spectators.push({ userId, name });
+    }
+
+    return true;
+}
+
+// ─── Периодическая очистка зависших матчей ────────────────────────────────────
+// waiting > 2 мин → завис на старте
+// playing > 15 мин → игровой цикл упал (сервер перезапустился и т.п.)
+
+async function cleanupStaleMatches(): Promise<void> {
+    const twoMinAgo = new Date(Date.now() - 2 * 60 * 1000);
+    const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000);
+
+    const stale = await db
+        .select({ id: schema.matches.id })
+        .from(schema.matches)
+        .where(
+            or(
+                and(
+                    eq(schema.matches.status, "waiting"),
+                    lt(schema.matches.createdAt, twoMinAgo),
+                ),
+                and(
+                    eq(schema.matches.status, "playing"),
+                    lt(schema.matches.startedAt, fifteenMinAgo),
+                ),
+            ),
+        );
+
+    for (const match of stale) {
+        await deleteMatch(match.id).catch((err) =>
+            console.error(`[cleanup] failed to delete match ${match.id}:`, err),
+        );
+    }
+}
+
+// Защита от дублирования интервалов при hot-reload в dev
+declare global {
+    // eslint-disable-next-line no-var
+    var _matchCleanupInterval: ReturnType<typeof setInterval> | undefined;
+}
+if (!global._matchCleanupInterval) {
+    global._matchCleanupInterval = setInterval(
+        () => void cleanupStaleMatches(),
+        30_000,
+    );
+}
 
 // ─── Геттеры ─────────────────────────────────────────────────────────────────
 
@@ -42,6 +216,7 @@ export function createRoom(opts: {
             { id: opts.teamAId, name: "Команда Red", members: [], score: 0 },
             { id: opts.teamBId, name: "Команда Blue", members: [], score: 0 },
         ],
+        spectators: [],
         currentRound: null,
         roundNumber: 0,
         maxRounds: 10,
@@ -213,7 +388,7 @@ async function runGameLoop(roomId: string): Promise<void> {
         .set({ status: "playing", startedAt: new Date() })
         .where(eq(schema.matches.id, roomId));
 
-    await pusherServer.trigger(gameChannel(roomId), PusherEvent.GAME_STARTING, {
+    await triggerSafe(gameChannel(roomId), PusherEvent.GAME_STARTING, {
         maxRounds: room.maxRounds,
         teams: serializeTeams(room.teams),
     });
@@ -239,16 +414,20 @@ async function nextRound(roomId: string): Promise<void> {
     const round = generateRound(roundId);
     room.currentRound = round;
 
-    await db.insert(schema.rounds).values({
-        id: roundId,
-        matchId: roomId,
-        symbol: round.symbol,
-        rule: JSON.stringify(round.rule),
-        correctAnswer: round.correctAnswer,
-        startedAt: new Date(round.startedAt),
-    });
+    // Fire-and-forget: не блокируем клиента ожиданием записи в БД
+    void db
+        .insert(schema.rounds)
+        .values({
+            id: roundId,
+            matchId: roomId,
+            symbol: round.symbol,
+            rule: JSON.stringify(round.rule),
+            correctAnswer: round.correctAnswer,
+            startedAt: new Date(round.startedAt),
+        })
+        .catch((err) => console.error("[rounds] insert failed:", err));
 
-    await pusherServer.trigger(gameChannel(roomId), PusherEvent.ROUND_START, {
+    await triggerSafe(gameChannel(roomId), PusherEvent.ROUND_START, {
         roundId,
         roundNumber: room.roundNumber,
         symbol: round.symbol,
@@ -282,12 +461,13 @@ async function endRound(roomId: string): Promise<void> {
     const room = rooms.get(roomId);
     if (!room || !room.currentRound) return;
 
-    await db
+    void db
         .update(schema.rounds)
         .set({ endedAt: new Date() })
-        .where(eq(schema.rounds.id, room.currentRound.id));
+        .where(eq(schema.rounds.id, room.currentRound.id))
+        .catch((err) => console.error("[rounds] update failed:", err));
 
-    await pusherServer.trigger(gameChannel(roomId), PusherEvent.ROUND_END, {
+    await triggerSafe(gameChannel(roomId), PusherEvent.ROUND_END, {
         roundId: room.currentRound.id,
         correctAnswer: room.currentRound.correctAnswer,
         scores: serializeTeams(room.teams),
@@ -349,13 +529,10 @@ export async function submitAnswer(opts: {
         });
     }
 
-    await pusherServer.trigger(
-        gameChannel(opts.roomId),
-        PusherEvent.SCORE_UPDATE,
-        {
-            teams: serializeTeams(room.teams),
-        },
-    );
+    // Fire-and-forget: не блокируем ответ клиенту ожиданием Pusher
+    void triggerSafe(gameChannel(opts.roomId), PusherEvent.SCORE_UPDATE, {
+        teams: serializeTeams(room.teams),
+    });
 
     return { isCorrect, playerDelta, teamDelta };
 }
@@ -372,34 +549,41 @@ async function endGame(roomId: string): Promise<void> {
     const [t1, t2] = room.teams;
     const winningTeam = t1.score >= t2.score ? t1 : t2;
 
-    await db
-        .update(schema.matches)
-        .set({
-            status: "finished",
-            endedAt: new Date(),
-            winningTeamId: winningTeam.id,
-        })
-        .where(eq(schema.matches.id, roomId));
+    await db.transaction(async (tx) => {
+        await tx
+            .update(schema.matches)
+            .set({
+                status: "finished",
+                endedAt: new Date(),
+                winningTeamId: winningTeam.id,
+            })
+            .where(eq(schema.matches.id, roomId));
 
-    for (const team of room.teams) {
-        await db
-            .update(schema.matchTeams)
-            .set({ totalScore: team.score })
-            .where(eq(schema.matchTeams.teamId, team.id));
+        for (const team of room.teams) {
+            await tx
+                .update(schema.matchTeams)
+                .set({ totalScore: team.score })
+                .where(eq(schema.matchTeams.teamId, team.id));
 
-        for (const member of team.members) {
-            await db
-                .update(schema.participants)
-                .set({
-                    score: member.score,
-                    correct: member.correct,
-                    wrong: member.wrong,
-                })
-                .where(eq(schema.participants.userId, member.userId));
+            for (const member of team.members) {
+                await tx
+                    .update(schema.participants)
+                    .set({
+                        score: member.score,
+                        correct: member.correct,
+                        wrong: member.wrong,
+                    })
+                    .where(
+                        and(
+                            eq(schema.participants.userId, member.userId),
+                            eq(schema.participants.matchId, roomId),
+                        ),
+                    );
+            }
         }
-    }
+    });
 
-    await pusherServer.trigger(gameChannel(roomId), PusherEvent.GAME_END, {
+    await triggerSafe(gameChannel(roomId), PusherEvent.GAME_END, {
         winningTeamId: winningTeam.id,
         teams: serializeTeams(room.teams),
     });

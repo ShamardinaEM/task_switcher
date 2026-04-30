@@ -245,15 +245,6 @@ function TeamsTab({ data, isLoading }: { data?: Team[]; isLoading: boolean }) {
                                     <h2 className="text-xl font-bold">
                                         {team.name}
                                     </h2>
-                                    <p className="text-xs text-zinc-500">
-                                        {team.wins} побед · {team.matchesPlayed}{" "}
-                                        {plural(
-                                            team.matchesPlayed,
-                                            "матч",
-                                            "матча",
-                                            "матчей",
-                                        )}
-                                    </p>
                                 </div>
                             </div>
                             <div className="text-right">
@@ -364,7 +355,13 @@ function WinrateTab({
                         <p className="font-bold text-lg">Команда Red</p>
                         <p className="text-3xl font-bold">{redWinrate}%</p>
                         <p className="text-sm opacity-80">
-                            {redTotalWins} побед из {redTotalMatches} матчей
+                            {redTotalWins} побед из {redTotalMatches}
+                            {plural(
+                                redTotalMatches,
+                                " матча",
+                                " матчей",
+                                " матчей",
+                            )}
                         </p>
                     </div>
                 </div>
@@ -376,7 +373,13 @@ function WinrateTab({
                         <p className="font-bold text-lg">Команда Blue</p>
                         <p className="text-3xl font-bold">{blueWinrate}%</p>
                         <p className="text-sm opacity-80">
-                            {blueTotalWins} побед из {blueTotalMatches} матчей
+                            {blueTotalWins} побед из {blueTotalMatches}
+                            {plural(
+                                blueTotalMatches,
+                                " матча",
+                                " матчей",
+                                " матчей",
+                            )}
                         </p>
                     </div>
                 </div>

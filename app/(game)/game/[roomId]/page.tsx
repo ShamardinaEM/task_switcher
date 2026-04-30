@@ -89,12 +89,16 @@ export default function GamePage({
     } = trpc.rooms.get.useQuery(
         { roomId },
         {
-            refetchInterval: gameStatus === "playing" ? 1000 : 2000, // Чаще обновляем во время игры
+            // Во время игры Pusher ведёт реальное время — поллинг только как страховка
+            refetchInterval: gameStatus === "playing" ? 10000 : 2000,
             enabled: !!roomId,
         },
     );
 
     const startGame = trpc.rooms.start.useMutation({
+        onSuccess: () => refetch(),
+    });
+    const spectateMutation = trpc.rooms.spectate.useMutation({
         onSuccess: () => refetch(),
     });
     const addBot = trpc.rooms.addBot.useMutation({
@@ -107,7 +111,7 @@ export default function GamePage({
         onSuccess: (data) => {
             setAnswered(true);
             setLastResult(data);
-            refetch(); // Обновляем счет сразу после ответа
+            // Счёт придёт через Pusher score:update — refetch не нужен
         },
     });
 
@@ -118,30 +122,27 @@ export default function GamePage({
         const unsubscribe = subscribeToGame(roomId, {
             "score:update": (data: unknown) => {
                 const d = data as { teams: TeamScore[] };
-                if (d?.teams) {
-                    // Сохраняем последний состав — нужен для снимка при старте раунда
-                    latestTeamsRef.current = d.teams;
+                if (!d?.teams) return;
+                latestTeamsRef.current = d.teams;
 
-                    setRoundStatuses((prev) => {
-                        const next = { ...prev };
-                        for (const team of d.teams) {
-                            for (const m of team.members ?? []) {
-                                if (next[m.userId]?.answered) continue;
-                                const base = baseScoresRef.current[m.userId] ?? { score: 0, correct: 0, wrong: 0 };
-                                const currentTotal = (m.correct ?? 0) + (m.wrong ?? 0);
-                                if (currentTotal > base.correct + base.wrong) {
-                                    next[m.userId] = {
-                                        answered: true,
-                                        delta: m.score - base.score,
-                                        isCorrect: m.score > base.score,
-                                    };
-                                }
+                setRoundStatuses((prev) => {
+                    const next = { ...prev };
+                    for (const team of d.teams) {
+                        for (const m of team.members ?? []) {
+                            if (next[m.userId]?.answered) continue;
+                            const base = baseScoresRef.current[m.userId] ?? { score: 0, correct: 0, wrong: 0 };
+                            const currentTotal = (m.correct ?? 0) + (m.wrong ?? 0);
+                            if (currentTotal > base.correct + base.wrong) {
+                                next[m.userId] = {
+                                    answered: true,
+                                    delta: m.score - base.score,
+                                    isCorrect: m.score > base.score,
+                                };
                             }
                         }
-                        return next;
-                    });
-                }
-                refetch();
+                    }
+                    return next;
+                });
             },
             "round:start": (data: unknown) => {
                 const d = data as RoundState;
@@ -149,7 +150,6 @@ export default function GamePage({
                 setAnswered(false);
                 setLastResult(null);
                 setTimeLeft(Math.ceil(d.durationMs / 1000));
-                // Снимок состояния на начало раунда — из последнего score:update
                 const snapshot: typeof baseScoresRef.current = {};
                 for (const team of latestTeamsRef.current) {
                     for (const m of team.members ?? []) {
@@ -162,20 +162,26 @@ export default function GamePage({
                 }
                 baseScoresRef.current = snapshot;
                 setRoundStatuses({});
-                refetch();
             },
             "round:end": () => {
-                setRound(null);
-                refetch();
+                // Не сбрасываем round в null — показываем символ до старта следующего.
+                // Таймер уже покажет 0, кнопки скроются по timeLeft === 0.
+                setTimeLeft(0);
             },
             "game:end": () => {
                 setGameStatus("finished");
-                refetch();
                 router.push(`/results/${roomId}`);
             },
         });
         return unsubscribe;
     }, [roomId, router, refetch]);
+
+    // Синхронизация статуса игры из данных комнаты (страховка если Pusher пропустил событие)
+    useEffect(() => {
+        if (room?.status === "playing" && gameStatus !== "playing") {
+            setGameStatus("playing");
+        }
+    }, [room?.status, gameStatus]);
 
     // Таймер раунда
     useEffect(() => {
@@ -219,10 +225,6 @@ export default function GamePage({
     };
     // Игровой экран
     if (gameStatus === "playing" || room.status === "playing") {
-        // Убеждаемся что статус синхронизирован
-        if (room.status === "playing" && gameStatus !== "playing") {
-            setGameStatus("playing");
-        }
 
         return (
             <main className="flex flex-1 flex-col items-center gap-5 p-4">
@@ -309,7 +311,9 @@ export default function GamePage({
                             {round.rule.description}
                         </p>
 
-                        {!answered ? (
+                        {myTeamIndex === -1 ? (
+                            <p className="text-sm text-zinc-500">Вы наблюдаете</p>
+                        ) : !answered && timeLeft > 0 ? (
                             <div className="flex gap-4">
                                 {round.rule.options.map((opt) => (
                                     <button
@@ -341,9 +345,8 @@ export default function GamePage({
                         )}
                     </div>
                 ) : (
-                    <div className="flex flex-col items-center gap-3 mt-4">
-                        <div className="h-10 w-10 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
-                        <p className="text-zinc-400">Подготовка раунда...</p>
+                    <div className="mt-4 text-zinc-500 text-sm">
+                        Ожидание следующего раунда…
                     </div>
                 )}
 
@@ -466,6 +469,38 @@ export default function GamePage({
                         </div>
                     );
                 })}
+            </div>
+
+            {/* ── Наблюдатели ── */}
+            <div className="w-full max-w-2xl rounded-2xl border border-zinc-600 bg-zinc-800/40 p-4">
+                <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3 flex-wrap">
+                        <span className="text-sm font-semibold text-zinc-300">
+                            Наблюдатели
+                        </span>
+                        {(room.spectators ?? []).length === 0 ? (
+                            <span className="text-xs text-zinc-600 italic">пока никого</span>
+                        ) : (
+                            (room.spectators ?? []).map((s) => (
+                                <span
+                                    key={s.userId}
+                                    className="rounded-full bg-zinc-700 px-2.5 py-0.5 text-xs text-zinc-300"
+                                >
+                                    {s.name}
+                                </span>
+                            ))
+                        )}
+                    </div>
+                    {myTeamIndex !== -1 && (
+                        <button
+                            onClick={() => spectateMutation.mutate({ roomId })}
+                            disabled={spectateMutation.isPending}
+                            className="shrink-0 rounded-lg border border-zinc-600 px-3 py-1.5 text-sm text-zinc-400 hover:border-zinc-400 hover:text-zinc-200 disabled:opacity-50 transition-colors"
+                        >
+                            Наблюдать
+                        </button>
+                    )}
+                </div>
             </div>
 
             {isHost && (
