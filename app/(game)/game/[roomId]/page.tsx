@@ -263,19 +263,19 @@ export default function GamePage({
                                                     {m.name}
                                                     {isMe && <span className="ml-1 text-xs text-zinc-500 font-normal">(вы)</span>}
                                                 </span>
-                                                {round ? (
-                                                    status?.answered ? (
-                                                        <span className={`shrink-0 text-xs font-bold ${status.isCorrect ? "text-green-400" : "text-red-400"}`}>
-                                                            {status.isCorrect ? `+${status.delta}` : "✗"}
-                                                        </span>
+                                                <span className="shrink-0 w-10 text-center text-xs font-bold font-mono">
+                                                    {round ? (
+                                                        status?.answered ? (
+                                                            <span className={status.isCorrect ? "text-green-400" : "text-red-400"}>
+                                                                {status.isCorrect ? `+${status.delta}` : "✗"}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="animate-pulse">❓</span>
+                                                        )
                                                     ) : (
-                                                        <span className="shrink-0 text-base animate-pulse">❓</span>
-                                                    )
-                                                ) : (
-                                                    <span className="shrink-0 text-xs text-zinc-500 font-mono">
-                                                        {m.score ?? 0}
-                                                    </span>
-                                                )}
+                                                        <span className="text-zinc-500">{m.score ?? 0}</span>
+                                                    )}
+                                                </span>
                                             </li>
                                         );
                                     })}
