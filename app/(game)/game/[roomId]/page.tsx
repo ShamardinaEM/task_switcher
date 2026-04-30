@@ -144,7 +144,9 @@ export default function GamePage({
                 setAnswered(false);
                 setLastResult(null);
                 setTimeLeft(Math.ceil(d.durationMs / 1000));
-                setLiveTeams(null);
+                if (latestTeamsRef.current.length > 0) {
+                    setLiveTeams([...latestTeamsRef.current]);
+                }
                 const snapshot: typeof baseScoresRef.current = {};
                 for (const team of latestTeamsRef.current) {
                     for (const m of team.members ?? []) {
@@ -158,8 +160,13 @@ export default function GamePage({
                 baseScoresRef.current = snapshot;
                 setRoundStatuses({});
             },
-            "round:end": () => {
+            "round:end": (data: unknown) => {
                 setTimeLeft(0);
+                const d = data as { scores?: TeamScore[] };
+                if (d?.scores) {
+                    latestTeamsRef.current = d.scores;
+                    setLiveTeams(d.scores);
+                }
             },
             "game:end": () => {
                 setGameStatus("finished");
