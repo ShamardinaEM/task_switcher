@@ -1,10 +1,11 @@
 export type RuleType = 'even-odd' | 'greater-less' | 'vowel-consonant';
 export type SymbolKind = 'digit' | 'letter';
+export type GameAnswer = 'чётное' | 'нечётное' | 'больше 5' | 'не больше 5' | 'гласная' | 'согласная';
 
 export interface GameRule {
   type: RuleType;
   description: string;
-  options: [string, string];
+  options: [GameAnswer, GameAnswer];
 }
 
 export interface GameRound {

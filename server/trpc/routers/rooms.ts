@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { eq, and, lt } from "drizzle-orm";
+import { router, protectedProcedure } from '../init';
 
 const zRoomId = z.string().uuid();
 const zRoundId = z.string().uuid();
 const zAnswer = z.enum(["чётное", "нечётное", "больше 5", "не больше 5", "гласная", "согласная"]);
-import { router, protectedProcedure } from '../init';
 import * as schema from '../../db/schema';
 import {
   createRoom,
