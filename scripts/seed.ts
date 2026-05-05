@@ -18,8 +18,6 @@ const PLAYERS = [
     { name: "Игрок_Диана", email: "diana@test.com", password: "123456" },
 ];
 
-const ROUND_SYMBOLS = ["∑", "∫", "√", "∞", "π", "Δ", "Ω", "α", "β", "γ"];
-
 function randomInt(min: number, max: number) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -171,67 +169,6 @@ async function seed() {
                 correct,
                 wrong,
                 isBot: false,
-            });
-        }
-
-        const totalRounds = randomInt(8, 10);
-        for (let r = 1; r <= totalRounds; r++) {
-            const roundId = crypto.randomUUID();
-            const useDigit = Math.random() < 0.5;
-            let correctAnswer: string;
-            let ruleDescription: string;
-            let options: string[];
-            let symbol: string;
-            if (useDigit) {
-                symbol = String(Math.floor(Math.random() * 9) + 1);
-                const digit = parseInt(symbol);
-                if (Math.random() < 0.5) {
-                    options = ["чётное", "нечётное"];
-                    correctAnswer = digit % 2 === 0 ? "чётное" : "нечётное";
-                    ruleDescription = "Число чётное или нечётное?";
-                } else {
-                    options = ["больше 5", "не больше 5"];
-                    correctAnswer = digit > 5 ? "больше 5" : "не больше 5";
-                    ruleDescription = "Число больше 5 или нет?";
-                }
-            } else {
-                const letters = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ";
-                symbol = letters[Math.floor(Math.random() * letters.length)];
-                const vowels = new Set([
-                    "А",
-                    "Е",
-                    "Ё",
-                    "И",
-                    "О",
-                    "У",
-                    "Ы",
-                    "Э",
-                    "Ю",
-                    "Я",
-                ]);
-                options = ["гласная", "согласная"];
-                correctAnswer = vowels.has(symbol) ? "гласная" : "согласная";
-                ruleDescription = "Буква гласная или согласная?";
-            }
-
-            const roundStartedAt = new Date(startedAt.getTime() + r * 15000);
-
-            await db.insert(schema.rounds).values({
-                id: roundId,
-                matchId,
-                symbol,
-                rule: JSON.stringify({
-                    type: useDigit
-                        ? options[0] === "чётное" || options[0] === "нечётное"
-                            ? "even-odd"
-                            : "greater-less"
-                        : "vowel-consonant",
-                    description: ruleDescription,
-                    options,
-                }),
-                correctAnswer,
-                startedAt: roundStartedAt,
-                endedAt: new Date(roundStartedAt.getTime() + 10000),
             });
         }
 

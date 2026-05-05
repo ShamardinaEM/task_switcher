@@ -404,18 +404,6 @@ async function nextRound(roomId: string): Promise<void> {
     const round = generateRound(roundId);
     room.currentRound = round;
 
-    void db
-        .insert(schema.rounds)
-        .values({
-            id: roundId,
-            matchId: roomId,
-            symbol: round.symbol,
-            rule: JSON.stringify(round.rule),
-            correctAnswer: round.correctAnswer,
-            startedAt: new Date(round.startedAt),
-        })
-        .catch((err) => console.error("[rounds] insert failed:", err));
-
     await triggerSafe(gameChannel(roomId), PusherEvent.ROUND_START, {
         roundId,
         roundNumber: room.roundNumber,
@@ -446,12 +434,6 @@ async function nextRound(roomId: string): Promise<void> {
 async function endRound(roomId: string): Promise<void> {
     const room = rooms.get(roomId);
     if (!room || !room.currentRound) return;
-
-    void db
-        .update(schema.rounds)
-        .set({ endedAt: new Date() })
-        .where(eq(schema.rounds.id, room.currentRound.id))
-        .catch((err) => console.error("[rounds] update failed:", err));
 
     await triggerSafe(gameChannel(roomId), PusherEvent.ROUND_END, {
         roundId: room.currentRound.id,
@@ -500,18 +482,6 @@ export async function submitAnswer(opts: {
         }
     }
     if (!playerTeam) return null;
-    const isBot = opts.userId.startsWith("bot-");
-    if (!isBot) {
-        await db.insert(schema.answers).values({
-            id: crypto.randomUUID(),
-            roundId: opts.roundId,
-            userId: opts.userId,
-            answer: opts.answer,
-            isCorrect,
-            responseMs,
-            createdAt: new Date(),
-        });
-    }
     void triggerSafe(gameChannel(opts.roomId), PusherEvent.SCORE_UPDATE, {
         teams: serializeTeams(room.teams),
     });

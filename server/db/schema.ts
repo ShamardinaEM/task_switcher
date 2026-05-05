@@ -73,7 +73,7 @@ export const matches = pgTable("match", {
     status: text("status").notNull().default("waiting"),
     startedAt: timestamp("started_at"),
     endedAt: timestamp("ended_at"),
-    createdAt: timestamp("created_at").notNull().defaultNow(), // Добавить это поле
+    createdAt: timestamp("created_at").notNull().defaultNow(),
     winningTeamId: text("winning_team_id").references(() => teams.id),
 });
 
@@ -105,38 +105,11 @@ export const participants = pgTable("participant", {
     isBot: boolean("is_bot").notNull().default(false),
 });
 
-export const rounds = pgTable("round", {
-    id: text("id").primaryKey(),
-    matchId: text("match_id")
-        .notNull()
-        .references(() => matches.id, { onDelete: "cascade" }),
-    symbol: text("symbol").notNull(),
-    rule: text("rule").notNull(), // JSON-сериализованный GameRule
-    correctAnswer: text("correct_answer").notNull(),
-    startedAt: timestamp("started_at").notNull(),
-    endedAt: timestamp("ended_at"),
-});
-
-export const answers = pgTable("answer", {
-    id: text("id").primaryKey(),
-    roundId: text("round_id")
-        .notNull()
-        .references(() => rounds.id, { onDelete: "cascade" }),
-    userId: text("user_id")
-        .notNull()
-        .references(() => users.id),
-    answer: text("answer").notNull(),
-    isCorrect: boolean("is_correct").notNull(),
-    responseMs: integer("response_ms").notNull(),
-    createdAt: timestamp("created_at").notNull(),
-});
-
 // ─── Relations (для Drizzle query builder с with:) ───────────────────────────
 
 export const matchesRelations = relations(matches, ({ many }) => ({
     matchTeams: many(matchTeams),
     participants: many(participants),
-    rounds: many(rounds),
 }));
 
 export const matchTeamsRelations = relations(matchTeams, ({ one }) => ({
@@ -161,17 +134,6 @@ export const participantsRelations = relations(participants, ({ one }) => ({
     user: one(users, { fields: [participants.userId], references: [users.id] }),
 }));
 
-export const roundsRelations = relations(rounds, ({ one, many }) => ({
-    match: one(matches, { fields: [rounds.matchId], references: [matches.id] }),
-    answers: many(answers),
-}));
-
-export const answersRelations = relations(answers, ({ one }) => ({
-    round: one(rounds, { fields: [answers.roundId], references: [rounds.id] }),
-    user: one(users, { fields: [answers.userId], references: [users.id] }),
-}));
-
 export const usersRelations = relations(users, ({ many }) => ({
     participants: many(participants),
-    answers: many(answers),
 }));
