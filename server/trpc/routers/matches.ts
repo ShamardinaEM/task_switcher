@@ -41,7 +41,7 @@ export const matchesRouter = router({
   }),
 
   get: protectedProcedure
-    .input(z.object({ matchId: z.string() }))
+    .input(z.object({ matchId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const match = await ctx.db.query.matches.findFirst({
         where: eq(schema.matches.id, input.matchId),

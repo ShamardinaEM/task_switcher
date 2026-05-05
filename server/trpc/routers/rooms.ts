@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, lt } from "drizzle-orm";
+
+const zRoomId = z.string().uuid();
+const zRoundId = z.string().uuid();
+const zAnswer = z.enum(["чётное", "нечётное", "больше 5", "не больше 5", "гласная", "согласная"]);
 import { router, protectedProcedure } from '../init';
 import * as schema from '../../db/schema';
 import {
@@ -111,7 +115,7 @@ export const roomsRouter = router({
 
     // ─── Войти по коду ──────────────────────────────────────────────────────────
     join: protectedProcedure
-        .input(z.object({ code: z.string().length(6) }))
+        .input(z.object({ code: z.string().length(6).regex(/^[A-Z2-9]+$/, "Неверный формат кода") }))
         .mutation(async ({ ctx, input }) => {
             const room = getRoomByCode(input.code.toUpperCase());
             if (!room)
@@ -170,7 +174,7 @@ export const roomsRouter = router({
     chooseTeam: protectedProcedure
         .input(
             z.object({
-                roomId: z.string(),
+                roomId: zRoomId,
                 teamIndex: z.union([z.literal(0), z.literal(1)]),
             }),
         )
@@ -359,9 +363,9 @@ export const roomsRouter = router({
     answer: protectedProcedure
         .input(
             z.object({
-                roomId: z.string(),
-                roundId: z.string(),
-                answer: z.string(),
+                roomId: zRoomId,
+                roundId: zRoundId,
+                answer: zAnswer,
             }),
         )
         .mutation(async ({ ctx, input }) => {
@@ -389,7 +393,7 @@ export const roomsRouter = router({
             .where(
                 and(
                     eq(schema.matches.status, "waiting"),
-                    sql`${schema.matches.createdAt} < ${twoMinAgo.toISOString()}`,
+                    lt(schema.matches.createdAt, twoMinAgo),
                 ),
             );
 
