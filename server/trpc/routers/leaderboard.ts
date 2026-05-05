@@ -36,7 +36,6 @@ export const leaderboardRouter = router({
                     .select({
                         id: schema.users.id,
                         name: schema.users.name,
-                        image: schema.users.image,
                         score: schema.participants.score,
                         correct: schema.participants.correct,
                         wrong: schema.participants.wrong,
@@ -110,7 +109,6 @@ export const leaderboardRouter = router({
             .select({
                 userId: schema.participants.userId,
                 name: schema.users.name,
-                image: schema.users.image,
                 totalScore: sql<number>`sum(${schema.participants.score})`,
                 totalCorrect: sql<number>`sum(${schema.participants.correct})`,
                 totalWrong: sql<number>`sum(${schema.participants.wrong})`,
@@ -132,7 +130,6 @@ export const leaderboardRouter = router({
             .groupBy(
                 schema.participants.userId,
                 schema.users.name,
-                schema.users.image,
             )
             .orderBy(desc(sql`sum(${schema.participants.score})`))
             .limit(20);

@@ -15,9 +15,9 @@ export default async function StatsPage() {
         const caller = await serverTrpc();
         const history = await caller.matches.myHistory();
 
-        const finished = history.filter((m) => m.status === "finished");
-        const wins = finished.filter((m) => m.won === true).length;
-        const losses = finished.filter((m) => m.won === false).length;
+        // myHistory возвращает только finished-матчи
+        const wins = history.filter((m) => m.won === true).length;
+        const losses = history.filter((m) => m.won === false).length;
         const totalScore = history.reduce((s, m) => s + m.score, 0);
         const totalCorrect = history.reduce((s, m) => s + m.correct, 0);
         const totalWrong = history.reduce((s, m) => s + m.wrong, 0);
@@ -36,7 +36,7 @@ export default async function StatsPage() {
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 w-full max-w-2xl">
-                    <StatCard label="Матчей" value={finished.length} />
+                    <StatCard label="Матчей" value={history.length} />
                     <StatCard
                         label="Побед"
                         value={wins}
@@ -162,8 +162,7 @@ export default async function StatsPage() {
                 </div>
             </main>
         );
-    } catch (error) {
-        console.error("Error loading stats:", error);
+    } catch {
         redirect("/login");
     }
 }

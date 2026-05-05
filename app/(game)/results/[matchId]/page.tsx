@@ -10,8 +10,6 @@ export default async function ResultsPage({
   const caller = await serverTrpc();
   const { match, participants } = await caller.matches.get({ matchId });
 
-  const teamMap = new Map(match.matchTeams.map((mt) => [mt.teamId, mt]));
-
   return (
     <main className="flex flex-1 flex-col items-center gap-8 p-8">
       <h1 className="text-3xl font-bold">Результаты матча</h1>

@@ -27,7 +27,6 @@
     "@trpc/server": "^11.17.0",
     "better-auth": "^1.6.9",
     "drizzle-orm": "^0.45.2",
-    "nanoid": "^5.1.9",
     "next": "16.2.4",
     "postgres": "^3.4.9",
     "pusher": "^5.3.3",

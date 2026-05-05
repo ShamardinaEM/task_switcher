@@ -9,6 +9,33 @@ import { eq, and, or, lt } from "drizzle-orm";
 
 export const rooms = new Map<string, GameRoom>();
 
+// ─── Фиксированный пул ботов ──────────────────────────────────────────────────
+
+export const FIXED_BOTS = [
+    { id: "bot-001", name: "🤖 Бот 1" },
+    { id: "bot-002", name: "🤖 Бот 2" },
+    { id: "bot-003", name: "🤖 Бот 3" },
+    { id: "bot-004", name: "🤖 Бот 4" },
+    { id: "bot-005", name: "🤖 Бот 5" },
+    { id: "bot-006", name: "🤖 Бот 6" },
+] as const;
+
+async function initBots(): Promise<void> {
+    for (const bot of FIXED_BOTS) {
+        await db
+            .insert(schema.users)
+            .values({
+                id: bot.id,
+                name: bot.name,
+                email: `${bot.id}@bot.local`,
+                emailVerified: false,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+            })
+            .onConflictDoNothing();
+    }
+}
+
 async function triggerSafe(
     channel: string,
     event: string,
@@ -39,16 +66,6 @@ export async function deleteMatch(matchId: string): Promise<void> {
             .from(schema.matchTeams)
             .where(eq(schema.matchTeams.matchId, matchId));
 
-        const botRows = await tx
-            .select({ userId: schema.participants.userId })
-            .from(schema.participants)
-            .where(
-                and(
-                    eq(schema.participants.matchId, matchId),
-                    eq(schema.participants.isBot, true),
-                ),
-            );
-
         await tx
             .delete(schema.participants)
             .where(eq(schema.participants.matchId, matchId));
@@ -60,11 +77,6 @@ export async function deleteMatch(matchId: string): Promise<void> {
             await tx
                 .delete(schema.teams)
                 .where(eq(schema.teams.id, mt.teamId));
-        }
-        for (const bot of botRows) {
-            await tx
-                .delete(schema.users)
-                .where(eq(schema.users.id, bot.userId));
         }
 
         await tx
@@ -165,16 +177,20 @@ async function cleanupStaleMatches(): Promise<void> {
     }
 }
 
-// Защита от дублирования интервалов при hot-reload в dev
+// Защита от дублирования при hot-reload в dev
 declare global {
-
     var _matchCleanupInterval: ReturnType<typeof setInterval> | undefined;
+    var _botsInitialized: boolean | undefined;
 }
 if (!global._matchCleanupInterval) {
     global._matchCleanupInterval = setInterval(
         () => void cleanupStaleMatches(),
         30_000,
     );
+}
+if (!global._botsInitialized) {
+    global._botsInitialized = true;
+    void initBots();
 }
 
 // ─── Геттеры ─────────────────────────────────────────────────────────────────
@@ -308,51 +324,44 @@ export function addBot(roomId: string): { ok: boolean; botIds?: string[] } {
     const room = rooms.get(roomId);
     if (!room) return { ok: false };
 
+    // Боты, уже занятые в этой комнате
+    const usedBotIds = new Set(
+        room.teams.flatMap((t) => t.members.filter((m) => m.isBot).map((m) => m.userId)),
+    );
+
+    // Свободные боты из фиксированного пула
+    const available = FIXED_BOTS.filter((b) => !usedBotIds.has(b.id));
+
+    const botIds: string[] = [];
+    let poolIndex = 0;
+
+    function pickBot(teamIndex: 0 | 1): boolean {
+        if (poolIndex >= available.length) return false;
+        const bot = available[poolIndex++];
+        const added = joinRoom(
+            roomId,
+            { userId: bot.id, name: bot.name, isBot: true, score: 0, correct: 0, wrong: 0 },
+            teamIndex,
+        );
+        if (added) botIds.push(bot.id);
+        return added;
+    }
+
     const team0Size = room.teams[0].members.length;
     const team1Size = room.teams[1].members.length;
 
-    const botIds: string[] = [];
-
     if (team0Size === team1Size) {
+        // Добавляем по одному в каждую команду
         for (let i = 0; i < room.teams.length; i++) {
             if (room.teams[i].members.length < room.maxPlayersPerTeam) {
-                const botId = `bot-${crypto.randomUUID()}`;
-                const added = joinRoom(
-                    roomId,
-                    {
-                        userId: botId,
-                        name: "🤖 Бот",
-                        isBot: true,
-                        score: 0,
-                        correct: 0,
-                        wrong: 0,
-                    },
-                    i as 0 | 1,
-                );
-
-                if (added) botIds.push(botId);
+                pickBot(i as 0 | 1);
             }
         }
-    }
-    else {
+    } else {
+        // Добавляем в меньшую
         const targetIndex = team0Size < team1Size ? 0 : 1;
-
         if (room.teams[targetIndex].members.length < room.maxPlayersPerTeam) {
-            const botId = `bot-${crypto.randomUUID()}`;
-            const added = joinRoom(
-                roomId,
-                {
-                    userId: botId,
-                    name: "🤖 Бот",
-                    isBot: true,
-                    score: 0,
-                    correct: 0,
-                    wrong: 0,
-                },
-                targetIndex,
-            );
-
-            if (added) botIds.push(botId);
+            pickBot(targetIndex);
         }
     }
 
@@ -377,11 +386,6 @@ async function runGameLoop(roomId: string): Promise<void> {
         .update(schema.matches)
         .set({ status: "playing", startedAt: new Date() })
         .where(eq(schema.matches.id, roomId));
-
-    await triggerSafe(gameChannel(roomId), PusherEvent.GAME_STARTING, {
-        maxRounds: room.maxRounds,
-        teams: serializeTeams(room.teams),
-    });
 
     await nextRound(roomId);
 }

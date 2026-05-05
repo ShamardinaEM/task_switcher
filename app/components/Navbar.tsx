@@ -1,6 +1,5 @@
 "use client";
 import Link from "next/link";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { signOut, useSession } from "@/lib/auth-client";
 
@@ -26,20 +25,9 @@ export function Navbar() {
                     {session && (
                         <div className="m-3 flex items-center gap-3">
                             <div className="flex items-center gap-2">
-                                {session.user.image ? (
-                                    <Image
-                                        src={session.user.image}
-                                        alt={session.user.name}
-                                        width={28}
-                                        height={28}
-                                        className="rounded-full grayscale"
-                                    />
-                                ) : (
-                                    <div className="w-7 h-7 rounded-full bg-zinc-700 flex items-center justify-center text-xs font-bold text-zinc-300">
-                                        {session.user.name?.[0]?.toUpperCase() ??
-                                            "?"}
-                                    </div>
-                                )}
+                                <div className="w-7 h-7 rounded-full bg-zinc-700 flex items-center justify-center text-xs font-bold text-zinc-300">
+                                    {session.user.name?.[0]?.toUpperCase() ?? "?"}
+                                </div>
                                 <span className="text-sm text-zinc-300 font-medium hidden sm:block">
                                     {session.user.name}
                                 </span>

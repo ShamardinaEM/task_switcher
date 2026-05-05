@@ -16,6 +16,4 @@ export const PusherEvent = {
   ROUND_END: 'round:end',
   SCORE_UPDATE: 'score:update',
   GAME_END: 'game:end',
-  PLAYER_JOINED: 'player:joined',
-  GAME_STARTING: 'game:starting',
 } as const;

@@ -235,9 +235,10 @@ export const roomsRouter = router({
                 });
             }
 
+            // Боты — фиксированные пользователи, создавать их не нужно.
+            // Просто добавляем записи участников для этого матча.
             const room = getRoom(roomId);
             for (const botId of result.botIds ?? []) {
-
                 let teamId: string | undefined;
                 for (const team of room?.teams ?? []) {
                     if (team.members.some((m) => m.userId === botId)) {
@@ -247,26 +248,15 @@ export const roomsRouter = router({
                 }
                 if (!teamId) continue;
 
-                await ctx.db.transaction(async (tx) => {
-                    await tx.insert(schema.users).values({
-                        id: botId,
-                        name: "🤖 Бот",
-                        email: `${botId}@bot.local`,
-                        emailVerified: false,
-                        createdAt: new Date(),
-                        updatedAt: new Date(),
-                    });
-
-                    await tx.insert(schema.participants).values({
-                        id: crypto.randomUUID(),
-                        matchId: roomId,
-                        userId: botId,
-                        teamId,
-                        score: 0,
-                        correct: 0,
-                        wrong: 0,
-                        isBot: true,
-                    });
+                await ctx.db.insert(schema.participants).values({
+                    id: crypto.randomUUID(),
+                    matchId: roomId,
+                    userId: botId,
+                    teamId,
+                    score: 0,
+                    correct: 0,
+                    wrong: 0,
+                    isBot: true,
                 });
             }
 

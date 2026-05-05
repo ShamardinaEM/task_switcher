@@ -109,9 +109,9 @@ export function checkAnswer(round: GameRound, answer: string): boolean {
 
 // ─── Подсчёт очков ────────────────────────────────────────────────────────────
 
-export interface ScoreDelta {
-    playerDelta: number; 
-    teamDelta: number; 
+interface ScoreDelta {
+    playerDelta: number;
+    teamDelta: number;
 }
 
 export function calcScoreDelta(
@@ -130,7 +130,7 @@ export function calcScoreDelta(
     return { playerDelta: 0, teamDelta: POINTS_WRONG_TEAM };
 }
 
-// ─── Вспомогательное: факты о числе (для тестов) ─────────────────────────────
+// ─── Вспомогательное (используется в тестах) ─────────────────────────────────
 
 export function isEven(n: number): boolean {
     return n % 2 === 0;

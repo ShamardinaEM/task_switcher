@@ -24,7 +24,6 @@ export const matchesRouter = router({
       .map((p) => {
       const match = p.match;
       const won = match.winningTeamId === p.teamId;
-      const finished = match.status === 'finished';
       return {
         matchId: match.id,
         roomCode: match.roomCode,
@@ -32,7 +31,7 @@ export const matchesRouter = router({
         startedAt: match.startedAt,
         endedAt: match.endedAt,
         teamName: p.team?.name ?? '—',
-        won: finished ? won : null,
+        won,
         score: p.score,
         correct: p.correct,
         wrong: p.wrong,

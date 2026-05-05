@@ -132,18 +132,11 @@ async function seed() {
             });
         }
 
-        for (let b = 0; b < 2; b++) {
-            const botId = `bot-${crypto.randomUUID()}`;
-            await db.insert(schema.users).values({
-                id: botId,
-                name: "🤖 Бот",
-                email: `${botId}@bot.local`,
-                emailVerified: false,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-            });
-
-            const botTeam = b < 1 ? teamRedId : teamBlueId;
+        // Бот из фиксированного пула (bot-001 в Red, bot-002 в Blue)
+        for (const [botId, botTeam] of [
+            ["bot-001", teamRedId],
+            ["bot-002", teamBlueId],
+        ] as const) {
             await db.insert(schema.participants).values({
                 id: crypto.randomUUID(),
                 matchId,
