@@ -71,7 +71,7 @@ export function generateRound(id: string): GameRound {
 
     if (useDigit) {
         const symbol = pickDigit();
-        const digit = parseInt(symbol, 10);
+        const digit = Number(symbol);
         const ruleVariants = [evenOddRule, greaterLessRule];
         const { rule, correctAnswer } =
             ruleVariants[Math.floor(Math.random() * ruleVariants.length)](
@@ -122,7 +122,7 @@ export function calcScoreDelta(
 
         const speedBonus = Math.max(
             0,
-            Math.floor((ROUND_DURATION_MS - responseMs) / 1600),
+            Math.floor((ROUND_DURATION_MS - responseMs) / 1300),
         );
         const playerDelta = POINTS_CORRECT + speedBonus;
         return { playerDelta, teamDelta: playerDelta };

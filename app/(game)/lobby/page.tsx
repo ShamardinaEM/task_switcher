@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
 import { useSession } from "@/lib/auth-client";
 import Link from "next/link";
-import { useEffect } from "react";
 
 export default function LobbyPage() {
     const router = useRouter();
@@ -13,7 +12,6 @@ export default function LobbyPage() {
     const [maxPlayersPerTeam, setMaxPlayersPerTeam] = useState<2 | 3>(2);
     const [error, setError] = useState("");
 
-    const cleanup = trpc.rooms.cleanup.useMutation();
     const createRoom = trpc.rooms.create.useMutation({
         onSuccess: (data) => router.push(`/game/${data.roomId}`),
         onError: (e) => setError(e.message),
@@ -24,10 +22,6 @@ export default function LobbyPage() {
         onError: (e) => setError(e.message),
     });
 
-    useEffect(() => {
-        cleanup.mutate();
-    }, []);
-    
     if (!session) {
         return (
             <main className="flex flex-1 items-center justify-center">

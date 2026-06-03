@@ -15,7 +15,6 @@ export default async function StatsPage() {
         const caller = await serverTrpc();
         const history = await caller.matches.myHistory();
 
-        // myHistory возвращает только finished-матчи
         const wins = history.filter((m) => m.won === true).length;
         const losses = history.filter((m) => m.won === false).length;
         const totalScore = history.reduce((s, m) => s + m.score, 0);

@@ -21,19 +21,21 @@ export const FIXED_BOTS = [
 ] as const;
 
 async function initBots(): Promise<void> {
-    for (const bot of FIXED_BOTS) {
-        await db
-            .insert(schema.users)
-            .values({
-                id: bot.id,
-                name: bot.name,
-                email: `${bot.id}@bot.local`,
-                emailVerified: false,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-            })
-            .onConflictDoNothing();
-    }
+    await Promise.all(
+        FIXED_BOTS.map((bot) =>
+            db
+                .insert(schema.users)
+                .values({
+                    id: bot.id,
+                    name: bot.name,
+                    email: `${bot.id}@bot.local`,
+                    emailVerified: false,
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                })
+                .onConflictDoNothing(),
+        ),
+    );
 }
 
 async function triggerSafe(
@@ -74,14 +76,10 @@ export async function deleteMatch(matchId: string): Promise<void> {
             .where(eq(schema.matchTeams.matchId, matchId));
 
         for (const mt of matchTeamRows) {
-            await tx
-                .delete(schema.teams)
-                .where(eq(schema.teams.id, mt.teamId));
+            await tx.delete(schema.teams).where(eq(schema.teams.id, mt.teamId));
         }
 
-        await tx
-            .delete(schema.matches)
-            .where(eq(schema.matches.id, matchId));
+        await tx.delete(schema.matches).where(eq(schema.matches.id, matchId));
     });
 }
 
@@ -255,12 +253,7 @@ export function joinRoom(
     }
 
     let team;
-    if (
-        preferredTeamIndex !== undefined &&
-        preferredTeamIndex >= 0 &&
-        preferredTeamIndex <= 1
-    ) {
-
+    if (preferredTeamIndex !== undefined) {
         const preferred = room.teams[preferredTeamIndex];
         if (preferred.members.length < room.maxPlayersPerTeam) {
             team = preferred;
@@ -308,7 +301,14 @@ export function chooseTeam(
         if (specIdx !== -1) {
             const spec = room.spectators[specIdx];
             room.spectators.splice(specIdx, 1);
-            member = { userId: spec.userId, name: spec.name, isBot: false, score: 0, correct: 0, wrong: 0 };
+            member = {
+                userId: spec.userId,
+                name: spec.name,
+                isBot: false,
+                score: 0,
+                correct: 0,
+                wrong: 0,
+            };
         }
     }
 
@@ -326,7 +326,9 @@ export function addBot(roomId: string): { ok: boolean; botIds?: string[] } {
 
     // Боты, уже занятые в этой комнате
     const usedBotIds = new Set(
-        room.teams.flatMap((t) => t.members.filter((m) => m.isBot).map((m) => m.userId)),
+        room.teams.flatMap((t) =>
+            t.members.filter((m) => m.isBot).map((m) => m.userId),
+        ),
     );
 
     // Свободные боты из фиксированного пула
@@ -340,7 +342,14 @@ export function addBot(roomId: string): { ok: boolean; botIds?: string[] } {
         const bot = available[poolIndex++];
         const added = joinRoom(
             roomId,
-            { userId: bot.id, name: bot.name, isBot: true, score: 0, correct: 0, wrong: 0 },
+            {
+                userId: bot.id,
+                name: bot.name,
+                isBot: true,
+                score: 0,
+                correct: 0,
+                wrong: 0,
+            },
             teamIndex,
         );
         if (added) botIds.push(bot.id);

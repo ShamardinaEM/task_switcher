@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { eq, and, lt } from "drizzle-orm";
-import { router, protectedProcedure } from '../init';
+import { router, protectedProcedure, publicProcedure } from '../init';
 
 const zRoomId = z.string().uuid();
 const zRoundId = z.string().uuid();
@@ -19,7 +19,6 @@ import {
   leaveRoom,
   becomeSpectator,
   deleteMatch,
-  rooms,
 } from '../../game/store';
 
 function generateCode(): string {
@@ -383,27 +382,5 @@ export const roomsRouter = router({
             return result;
         }),
 
-    // ─── Ручная очистка зависших комнат ─────────────────────────────────────────
-    cleanup: protectedProcedure.mutation(async ({ ctx }) => {
-        const twoMinAgo = new Date(Date.now() - 2 * 60 * 1000);
-
-        const staleMatches = await ctx.db
-            .select({ id: schema.matches.id })
-            .from(schema.matches)
-            .where(
-                and(
-                    eq(schema.matches.status, "waiting"),
-                    lt(schema.matches.createdAt, twoMinAgo),
-                ),
-            );
-
-        let cleanedCount = 0;
-        for (const match of staleMatches) {
-            await deleteMatch(match.id).catch(() => null);
-            cleanedCount++;
-        }
-
-        return { cleaned: cleanedCount };
-    }),
 });
 

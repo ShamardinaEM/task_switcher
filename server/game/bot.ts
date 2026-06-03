@@ -1,7 +1,3 @@
-// Намеренно не импортируем из store.ts — это предотвращает циклическую зависимость.
-// store.ts → bot.ts → store.ts привело бы к тому, что submitAnswer был бы undefined
-// при вызове. Вместо этого store передаёт себя как колбэк.
-
 export type AnswerCallback = (opts: {
   roomId: string;
   roundId: string;
