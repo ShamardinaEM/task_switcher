@@ -8,7 +8,7 @@ TaskSwitcher — многопользовательская игра на быс
 
 Проект развёрнут на платформе [Railway](https://railway.app) и доступен по адресу:
 
-**https://taskswitcher-production.up.railway.app**
+**https://taskswitcher.up.railway.app/**
 
 ---
 

@@ -1,4 +1,0 @@
-{
-    "buildCommand": "npx drizzle-kit push && next build",
-    "framework": "nextjs"
-}
